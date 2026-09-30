@@ -54,31 +54,37 @@ async function openPage(port) {
     }
     await browser.close(); srv.close(); return;
   }
-  // parallel chunks → segment files → concat
+  // resumable: 1-second chunks, each encoded to its own file and renamed only when complete
   const probe = await openPage(port); const DUR = probe.DUR; await probe.browser.close();
-  const total = Math.round(DUR * FPS), per = Math.ceil(total / workers);
-  const segs = [];
-  const started = Date.now();
-  await Promise.all(Array.from({ length: workers }, async (_, w) => {
-    const a = w * per, b = Math.min(total, a + per); if (a >= b) return;
-    const seg = path.join(OUT, `seg${w}.mp4`); segs[w] = seg;
+  const total = Math.round(DUR * FPS), CH = FPS, nCh = Math.ceil(total / CH);
+  const chDir = path.join(OUT, 'chunks'); fs.mkdirSync(chDir, { recursive: true });
+  const chunkPath = c => path.join(chDir, `c${String(c).padStart(4, '0')}.mp4`);
+  const queue = Array.from({ length: nCh }, (_, c) => c).filter(c => !fs.existsSync(chunkPath(c)));
+  console.log(`${nCh - queue.length}/${nCh} chunks already done, ${queue.length} to render`);
+  const started = Date.now(); let doneCount = nCh - queue.length;
+  await Promise.all(Array.from({ length: Math.min(workers, queue.length) }, async (_, w) => {
     const { browser, shoot } = await openPage(port);
-    const ff = spawn(ffmpeg, ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(FPS), '-c:v', 'mjpeg', '-i', '-', '-c:v', 'libx264', '-preset', 'medium', '-crf', '16', '-pix_fmt', 'yuv420p', seg], { stdio: ['pipe', 'inherit', 'inherit'] });
-    const done = new Promise((res, rej) => ff.on('close', c => c === 0 ? res() : rej(new Error('ffmpeg ' + c))));
-    for (let i = a; i < b; i++) {
-      const buf = await shoot(i / FPS);
-      if (!ff.stdin.write(buf)) await new Promise(r => ff.stdin.once('drain', r));
-      if ((i - a) % 30 === 0) console.log(`w${w} frame ${i}/${b}  ${((Date.now() - started) / 1000).toFixed(0)}s`);
+    for (let c = queue.shift(); c !== undefined; c = queue.shift()) {
+      const part = chunkPath(c) + '.part.mp4';
+      const ff = spawn(ffmpeg, ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(FPS), '-c:v', 'mjpeg', '-i', '-', '-c:v', 'libx264', '-preset', 'medium', '-crf', '16', '-pix_fmt', 'yuv420p', part], { stdio: ['pipe', 'inherit', 'inherit'] });
+      const done = new Promise((res, rej) => ff.on('close', code => code === 0 ? res() : rej(new Error('ffmpeg ' + code))));
+      for (let i = c * CH; i < Math.min(total, (c + 1) * CH); i++) {
+        const buf = await shoot(i / FPS);
+        if (!ff.stdin.write(buf)) await new Promise(r => ff.stdin.once('drain', r));
+      }
+      ff.stdin.end(); await done; fs.renameSync(part, chunkPath(c));
+      doneCount++; console.log(`chunk ${c} done (${doneCount}/${nCh})  ${((Date.now() - started) / 1000).toFixed(0)}s`);
     }
-    ff.stdin.end(); await done; await browser.close();
+    await browser.close();
   }));
+  const segs = Array.from({ length: nCh }, (_, c) => chunkPath(c));
   const list = path.join(OUT, 'segs.txt'); fs.writeFileSync(list, segs.filter(Boolean).map(s => `file '${s}'`).join('\n'));
   const audio = path.join(ROOT, 'audio', 'score.wav'), mp4 = path.join(OUT, 'forbidden-city.mp4');
   const cat = ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', list];
   if (fs.existsSync(audio)) cat.push('-i', audio, '-c:a', 'aac', '-b:a', '256k', '-shortest');
   cat.push('-c:v', 'copy', '-movflags', '+faststart', mp4);
   execFileSync(ffmpeg, cat, { stdio: 'inherit' });
-  segs.filter(Boolean).forEach(s => fs.unlinkSync(s)); fs.unlinkSync(list);
+  fs.unlinkSync(list);
   console.log('wrote', mp4, ((Date.now() - started) / 1000).toFixed(0) + 's');
   srv.close();
 })().catch(e => { console.error(e); process.exit(1); });
