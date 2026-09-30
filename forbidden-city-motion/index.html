@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>紫禁城 · Forbidden City</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+  :root { --ink: #05080f; --ivory: #efe6d2; --gold: #e6b45c; --red: #a3241a; --jade: #4fc8a6; --blue: #7f96c8; }
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  #stage { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; transform-origin: 50% 50%; overflow: hidden; background: var(--ink);
+    font-family: Inter, "Noto Sans SC", sans-serif; color: var(--ivory); }
+  body.render #stage { left: 0; top: 0; transform: none !important; }
+  #stage > * { position: absolute; inset: 0; width: 1920px; height: 1080px; }
+  #gl { display: block; }
+  svg { overflow: visible; pointer-events: none; }
+  #type { pointer-events: none; }
+  .hair { fill: none; stroke: rgba(239,230,210,.75); stroke-width: 1; vector-effect: non-scaling-stroke; }
+  .hair.dim { stroke: rgba(239,230,210,.22); }
+  .hair.gold { stroke: rgba(236,186,98,.95); }
+  .hair.blue { stroke: rgba(127,150,200,.35); }
+  .hair.ivory { stroke: rgba(239,230,210,.6); }
+  .hair.dash { stroke-dasharray: 2 6; }
+  .dot { fill: var(--gold); }
+  /* frame */
+  .frametext > div { position: absolute; font-size: 12px; letter-spacing: .32em; font-weight: 500; color: rgba(239,230,210,.62); white-space: pre; }
+  .frametext .tl { left: 96px; top: 50px; display: flex; gap: 22px; align-items: baseline; }
+  .frametext .tl b { font: 300 15px "Noto Sans SC"; letter-spacing: .5em; color: var(--ivory); }
+  .frametext .tr { right: 96px; top: 50px; display: flex; gap: 26px; }
+  .frametext .tr .seqname { color: var(--gold); }
+  .frametext .bl { left: 96px; bottom: 58px; font-variant-numeric: tabular-nums; letter-spacing: .18em; }
+  .frametext .br { right: 96px; bottom: 58px; font-variant-numeric: tabular-nums; letter-spacing: .2em; }
+  /* blueprint */
+  .bptext { position: absolute; left: 200px; top: 460px; font-size: 12px; letter-spacing: .3em; line-height: 1.9; }
+  .bptext .k { color: rgba(239,230,210,.55); }
+  .bptext .v { font: 200 44px Inter; letter-spacing: .02em; color: var(--gold); font-variant-numeric: tabular-nums; }
+  .scaletext { position: absolute; left: 1556px; top: 976px; font-size: 11px; letter-spacing: .2em; color: rgba(239,230,210,.6); }
+  /* anchored labels */
+  .anchor { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+  .anchor .inner { position: absolute; white-space: nowrap; }
+  .anchor.plan .inner { left: 18px; top: -9px; font: 300 17px "Noto Sans SC"; letter-spacing: .25em; }
+  .anchor.plan i { font: 500 10px Inter; font-style: normal; color: var(--gold); margin-right: 12px; letter-spacing: .2em; vertical-align: 3px; }
+  .anchor.plan em { font: 500 10px Inter; font-style: normal; letter-spacing: .3em; margin-left: 12px; color: rgba(239,230,210,.6); vertical-align: 2px; }
+  .anchor.ringlabel .inner { left: 8px; top: -40px; display: flex; flex-direction: column; gap: 6px; }
+  .anchor.ringlabel b { font: 300 26px "Noto Sans SC"; letter-spacing: .3em; }
+  .anchor.ringlabel em { font: 500 11px Inter; font-style: normal; letter-spacing: .34em; color: var(--gold); }
+  .anchor.ringlabel span { font: 300 11px Inter; letter-spacing: .3em; color: rgba(239,230,210,.6); }
+  .anchor.xlabel .inner { left: 0; top: -22px; display: grid; grid-template-columns: 40px auto; column-gap: 8px; row-gap: 3px; }
+  .anchor.xlabel i { font: 500 11px Inter; font-style: normal; color: var(--gold); letter-spacing: .2em; grid-row: span 3; padding-top: 5px; }
+  .anchor.xlabel b { font: 300 20px "Noto Sans SC"; letter-spacing: .2em; font-weight: 300; }
+  .anchor.xlabel em { font: 500 10px Inter; font-style: normal; letter-spacing: .3em; color: rgba(239,230,210,.7); }
+  .anchor.xlabel .xyz { font: 300 10px Inter; letter-spacing: .14em; color: rgba(236,186,98,.85); font-variant-numeric: tabular-nums; }
+  /* abstract */
+  .abtext { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+  .abtext .ratio { position: absolute; left: 0; width: 1920px; top: 590px; text-align: center; font: 200 150px/1 Inter; letter-spacing: .08em; color: var(--ivory); }
+  .abtext .ratio span { color: var(--gold); }
+  .abtext .cap { position: absolute; left: 0; width: 1920px; top: 770px; text-align: center; font: 400 13px "Noto Sans SC"; letter-spacing: .5em; color: rgba(239,230,210,.7); }
+  .fact { position: absolute; display: flex; flex-direction: column; gap: 6px; }
+  .fact b { font: 200 54px/1 Inter; color: var(--gold); letter-spacing: .02em; }
+  .fact span { font: 500 11px Inter; letter-spacing: .38em; color: rgba(239,230,210,.7); }
+  .reveal { position: absolute; left: 0; width: 1920px; top: 996px; text-align: center; font: 500 13px Inter; letter-spacing: .55em; color: var(--ivory); }
+  /* mask */
+  .maskchar { font: 900 470px "Noto Sans SC"; }
+  .maskchar.outline { fill: none; stroke: rgba(239,230,210,.8); stroke-width: 1.2; }
+  .maskcap { position: absolute; left: 0; width: 1920px; top: 900px; display: flex; justify-content: center; gap: 64px; font: 500 14px Inter; letter-spacing: .6em; color: rgba(239,230,210,.85); }
+  /* title */
+  .title { position: absolute; left: 0; width: 1920px; top: 118px; text-align: center; opacity: 0; }
+  .title .zh { font: 300 58px "Noto Sans SC"; letter-spacing: .9em; padding-left: .9em; color: #f6eedc; text-shadow: 0 0 30px rgba(255,190,110,.25); }
+  .title .rule { width: 180px; height: 1px; margin: 26px auto 22px; background: linear-gradient(90deg, transparent, var(--gold), transparent); }
+  .title .en { font: 300 15px Inter; letter-spacing: .72em; padding-left: .72em; color: var(--ivory); }
+  .title .meta { margin-top: 14px; font: 500 10px Inter; letter-spacing: .6em; padding-left: .6em; color: var(--gold); }
+  .flash { position: absolute; inset: 28px; border: 1px solid rgba(255,255,255,.9); box-shadow: inset 0 0 120px rgba(255,255,255,.25); opacity: 0; }
+  /* start gate (preview only) */
+  #gate { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 18px; background: rgba(3,5,10,.72); color: var(--ivory, #efe6d2); font: 300 14px Inter, sans-serif; letter-spacing: .5em; cursor: pointer; z-index: 10; transition: opacity .6s; }
+  #gate b { font: 300 40px "Noto Sans SC"; letter-spacing: .8em; padding-left: .8em; }
+  #gate.gone { opacity: 0; pointer-events: none; }
+  body.render #gate { display: none; }
+</style>
+<script src="vendor/gsap/gsap.min.js"></script>
+<script src="vendor/gsap/CustomEase.min.js"></script>
+<script src="vendor/gsap/DrawSVGPlugin.min.js"></script>
+<script src="vendor/gsap/MorphSVGPlugin.min.js"></script>
+<script src="vendor/gsap/SplitText.min.js"></script>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/addons/" } }
+</script>
+</head>
+<body>
+<div id="stage">
+  <canvas id="gl" width="1920" height="1080"></canvas>
+  <svg id="abstract" viewBox="0 0 1920 1080"></svg>
+  <svg id="mask" viewBox="0 0 1920 1080"></svg>
+  <svg id="hud" viewBox="0 0 1920 1080"></svg>
+  <div id="type"></div>
+</div>
+<div id="gate"><b>紫禁城</b><span>CLICK TO PLAY · SOUND ON</span></div>
+<audio id="score" src="audio/score.m4a" preload="auto"></audio>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
